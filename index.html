@@ -77,11 +77,13 @@
     }
     .config-grid {
       display: grid;
-      grid-template-columns: 2fr 1.5fr 1fr 1fr auto;
+      grid-template-columns: 2fr 1.2fr 1.2fr 1fr 1fr auto;
       gap: 12px;
       align-items: flex-end;
     }
-    @media (max-width: 900px) { .config-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 1100px) { .config-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 650px) { .config-grid { grid-template-columns: 1fr; } }
+    
     .form-group { display: flex; flex-direction: column; gap: 6px; }
     .form-group label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
     input, select {
@@ -110,6 +112,7 @@
     .btn:hover { transform: translateY(-1px); filter: brightness(1.1); }
     .btn.primary { background: linear-gradient(135deg, #e11d34, #ff5a4f); color: #fff; box-shadow: 0 4px 15px var(--accent-glow); }
     .btn.secondary { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.12); }
+    .btn.login-btn { background: #2563eb; color: #fff; }
 
     .stats-grid {
       display: grid;
@@ -211,6 +214,7 @@
     }
     .history-item.update { border-left-color: #10b981; }
     .history-item.init { border-left-color: #3b82f6; }
+    .history-item.error { border-left-color: #ef4444; }
     .history-time { font-family: 'JetBrains Mono', monospace; color: var(--text-muted); font-size: 11px; }
     .history-msg { font-weight: 600; color: #fff; }
     .history-detail { color: #64748b; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; }
@@ -226,6 +230,19 @@
       z-index: 999;
     }
     .toast.show { transform: translateY(0); opacity: 1; }
+
+    .auth-banner {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      border-radius: 12px;
+      padding: 12px 16px;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13.5px;
+      color: #fca5a5;
+    }
   </style>
 </head>
 <body>
@@ -244,6 +261,11 @@
       </div>
     </header>
 
+    <div id="authBanner" class="auth-banner">
+      <span id="authBannerText">⚠️ Backend requires login (401 Unauthorized). Please enter your Email & Password below to connect.</span>
+    </div>
+
+    <!-- Controls & Login -->
     <div class="card">
       <div class="config-grid">
         <div class="form-group">
@@ -251,8 +273,12 @@
           <input type="text" id="backendInput" value="https://portal.aqmart.tech" placeholder="https://...">
         </div>
         <div class="form-group">
-          <label>Auth Token / Session ID (Optional)</label>
-          <input type="password" id="tokenInput" placeholder="Leave empty or enter Token">
+          <label>Account Email</label>
+          <input type="email" id="emailInput" placeholder="rizwanjaved9997@gmail.com">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="passwordInput" placeholder="Password">
         </div>
         <div class="form-group">
           <label>Active Slot</label>
@@ -263,18 +289,23 @@
         <div class="form-group">
           <label>Poll Speed</label>
           <select id="intervalSelect">
-            <option value="500" selected>0.5s (500ms)</option>
-            <option value="1000">1.0s</option>
+            <option value="1000" selected>1.0s</option>
+            <option value="500">0.5s</option>
             <option value="2000">2.0s</option>
           </select>
         </div>
         <div style="display: flex; gap: 8px;">
-          <button class="btn primary" id="btnApply">Save</button>
-          <button class="btn secondary" id="btnFetchNow">Fetch Now</button>
+          <button class="btn login-btn" id="btnLogin">Sign In</button>
+          <button class="btn secondary" id="btnFetchNow">Refresh</button>
         </div>
+      </div>
+      <div style="margin-top: 10px; font-size: 12px; color: var(--text-muted); display: flex; justify-content: space-between;">
+        <span>Tip: Sign In to fetch your live slot cookies automatically.</span>
+        <span id="userStatusText">Not signed in</span>
       </div>
     </div>
 
+    <!-- Stats -->
     <div class="stats-grid">
       <div class="stat-card">
         <span class="stat-label">Last Updated Time</span>
@@ -293,11 +324,12 @@
       </div>
       <div class="stat-card">
         <span class="stat-label">Polling Rate</span>
-        <span class="stat-value" id="pollRateDisplay">500ms</span>
+        <span class="stat-value" id="pollRateDisplay">1000ms</span>
         <span class="stat-sub" id="lastPollSub">Last poll: just now</span>
       </div>
     </div>
 
+    <!-- Main Content -->
     <div class="main-grid">
       <div class="card">
         <div class="tabs-header">
@@ -353,8 +385,9 @@
     let config = {
       backendUrl: localStorage.getItem('flow_backendUrl') || 'https://portal.aqmart.tech',
       token: localStorage.getItem('flow_token') || '',
+      email: localStorage.getItem('flow_email') || '',
       slot: localStorage.getItem('flow_slot') || '1',
-      pollIntervalMs: parseInt(localStorage.getItem('flow_interval') || '500', 10)
+      pollIntervalMs: parseInt(localStorage.getItem('flow_interval') || '1000', 10)
     };
 
     let state = {
@@ -370,8 +403,9 @@
     };
 
     $('backendInput').value = config.backendUrl;
-    $('tokenInput').value = config.token;
+    $('emailInput').value = config.email;
     $('intervalSelect').value = String(config.pollIntervalMs);
+    if (config.token) $('userStatusText').textContent = 'Signed in (' + (config.email || 'token saved') + ')';
 
     function showToast(msg) {
       const t = $('toast');
@@ -404,20 +438,50 @@
       showToast('Copied Cookie Header string!');
     };
 
-    $('btnApply').onclick = () => {
-      config.backendUrl = $('backendInput').value.trim();
-      config.token = $('tokenInput').value.trim();
-      config.slot = $('slotSelect').value;
-      config.pollIntervalMs = parseInt($('intervalSelect').value, 10);
+    // Login action
+    $('btnLogin').onclick = async () => {
+      const email = $('emailInput').value.trim();
+      const password = $('passwordInput').value.trim();
+      const base = $('backendInput').value.trim().replace(/\/+$/, '');
 
-      localStorage.setItem('flow_backendUrl', config.backendUrl);
-      localStorage.setItem('flow_token', config.token);
-      localStorage.setItem('flow_slot', config.slot);
-      localStorage.setItem('flow_interval', String(config.pollIntervalMs));
+      if (!email || !password) {
+        showToast('Please enter Email and Password');
+        return;
+      }
 
-      showToast('Settings saved!');
-      restartPolling();
-      pollNow();
+      $('btnLogin').disabled = true;
+      $('btnLogin').textContent = 'Signing in...';
+
+      try {
+        const res = await smartFetch(base + '/api/user/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        if (res && (res.token || res.userToken || res.session_id || res.success)) {
+          config.token = res.token || res.userToken || res.session_id || res.sid || '';
+          config.email = email;
+          config.backendUrl = base;
+          localStorage.setItem('flow_token', config.token);
+          localStorage.setItem('flow_email', config.email);
+          localStorage.setItem('flow_backendUrl', config.backendUrl);
+
+          $('userStatusText').textContent = 'Signed in as ' + email;
+          $('authBanner').style.display = 'none';
+          showToast('Signed in successfully!');
+          addHistory('init', 'Signed in successfully as ' + email);
+          fetchSlots();
+          pollNow();
+        } else {
+          showToast(res?.error || 'Login failed. Check credentials.');
+        }
+      } catch (err) {
+        showToast('Login error: ' + err.message);
+      } finally {
+        $('btnLogin').disabled = false;
+        $('btnLogin').textContent = 'Sign In';
+      }
     };
 
     $('btnFetchNow').onclick = () => pollNow();
@@ -439,37 +503,66 @@
       `).join('');
     }
 
-    // Direct fetch with fallback through open CORS proxy if needed
-    async function smartFetch(targetUrl, headers = {}) {
-      const reqHeaders = { 'Accept': 'application/json, text/plain, */*', ...headers };
+    async function smartFetch(targetUrl, options = {}) {
+      const headers = { 'Accept': 'application/json, text/plain, */*', ...(options.headers || {}) };
       if (config.token) {
-        reqHeaders['X-Session-ID'] = config.token;
-        reqHeaders['Authorization'] = `Bearer ${config.token}`;
+        headers['X-Session-ID'] = config.token;
+        headers['Authorization'] = `Bearer ${config.token}`;
       }
 
       // Try 1: Direct
       try {
-        const res = await fetch(targetUrl, { headers: reqHeaders });
+        const res = await fetch(targetUrl, { ...options, headers });
+        if (res.status === 401 || res.status === 403) {
+          $('authBanner').style.display = 'flex';
+          throw new Error('401 Unauthorized - Please Sign In with Email/Password');
+        }
         if (res.ok) {
           try { return await res.json(); } catch (_) { return await res.text(); }
         }
-      } catch (_) {}
+      } catch (err) {
+        if (err.message.includes('401')) throw err;
+      }
 
       // Try 2: Proxy
       try {
         const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
-        const res = await fetch(proxyUrl, { headers: reqHeaders });
+        const res = await fetch(proxyUrl, { ...options, headers });
+        if (res.status === 401 || res.status === 403) {
+          $('authBanner').style.display = 'flex';
+          throw new Error('401 Unauthorized - Please Sign In with Email/Password');
+        }
         if (res.ok) {
           try { return await res.json(); } catch (_) { return await res.text(); }
         }
-      } catch (_) {}
+      } catch (err) {
+        if (err.message.includes('401')) throw err;
+      }
 
-      throw new Error('Connection failed');
+      throw new Error('Failed to reach backend');
+    }
+
+    async function fetchSlots() {
+      const base = config.backendUrl.replace(/\/+$/, '');
+      const endpoints = ['/api/extension/session.php', '/api/user/cookie-sessions', '/api/cookies'];
+      for (const ep of endpoints) {
+        try {
+          const res = await smartFetch(base + ep);
+          const raw = res?.slots || res?.sessions || res?.files || [];
+          if (Array.isArray(raw) && raw.length > 0) {
+            $('slotSelect').innerHTML = raw.map((s, idx) => {
+              const key = String(s.id != null ? s.id : (s.slot_key != null ? s.slot_key : idx + 1));
+              return `<option value="${key}">${s.name || 'Session ' + (idx + 1)} (${s.cookie_count || s.cookieCount || 0} cookies)</option>`;
+            }).join('');
+            return;
+          }
+        } catch (_) {}
+      }
     }
 
     async function pollNow() {
       const base = config.backendUrl.replace(/\/+$/, '');
-      const slot = config.slot;
+      const slot = $('slotSelect').value || config.slot || '1';
       const endpoints = [
         `/api/extension/cookies.php?slot=${encodeURIComponent(slot)}`,
         `/api/cookies/${encodeURIComponent(slot)}`,
@@ -477,19 +570,23 @@
       ];
 
       let payload = null;
+      let lastErrMsg = '';
       for (const ep of endpoints) {
         try {
           payload = await smartFetch(base + ep);
           if (payload) break;
-        } catch (_) {}
+        } catch (err) {
+          lastErrMsg = err.message;
+        }
       }
 
       if (!payload) {
         $('statusBadge').className = 'status-badge error';
-        $('statusText').textContent = 'ERROR / DISCONNECTED';
+        $('statusText').textContent = lastErrMsg.includes('401') ? '401: LOGIN REQUIRED' : 'ERROR / DISCONNECTED';
         return;
       }
 
+      $('authBanner').style.display = 'none';
       $('statusBadge').className = 'status-badge';
       $('statusText').textContent = `LIVE · ${config.pollIntervalMs}ms`;
 
@@ -523,7 +620,7 @@
         addHistory(
           isFirst ? 'init' : 'update',
           isFirst ? `Initial cookies loaded (${cookieArray.length} cookies)` : `Cookies updated from backend! (${cookieArray.length} cookies)`,
-          `Slot: ${config.slot} | Count: ${cookieArray.length}`
+          `Slot: ${slot} | Count: ${cookieArray.length}`
         );
 
         $('lastUpdateTime').textContent = timeStr;
@@ -572,6 +669,7 @@
       timer = setInterval(pollNow, config.pollIntervalMs);
     }
 
+    fetchSlots();
     restartPolling();
     pollNow();
   </script>
