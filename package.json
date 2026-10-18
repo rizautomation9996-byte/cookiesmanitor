@@ -1,0 +1,15 @@
+{
+  "name": "flowbymk-cookie-monitor",
+  "version": "1.0.0",
+  "description": "Real-time backend cookie monitor & live updater for FlowByMK",
+  "main": "cookie-monitor.js",
+  "scripts": {
+    "start": "node cookie-monitor.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["cookie", "monitor", "flowbymk"],
+  "author": "",
+  "license": "ISC"
+}
